@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { haversineDistance } from '../lib/group-code'
 
-export function useLocationPublisher(memberId: string | undefined, paused: boolean, highAccuracy: boolean) {
+export function useLocationPublisher(memberId: string | undefined, paused: boolean) {
   const lastPos = useRef<{ lat: number; lng: number } | null>(null)
   const lastSent = useRef<number>(0)
   const [accuracy, setAccuracy] = useState<number | null>(null)
@@ -39,15 +39,11 @@ export function useLocationPublisher(memberId: string | undefined, paused: boole
         send(latitude, longitude, acc)
       },
       (err) => setError(err.message),
-      {
-        enableHighAccuracy: highAccuracy,
-        timeout: 15_000,
-        maximumAge: highAccuracy ? 5_000 : 20_000,
-      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 5_000 },
     )
 
     return () => navigator.geolocation.clearWatch(watchId)
-  }, [memberId, paused, highAccuracy])
+  }, [memberId, paused])
 
   return { accuracy, error }
 }

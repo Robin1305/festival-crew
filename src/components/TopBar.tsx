@@ -9,11 +9,9 @@ interface Props {
   accuracy: number | null
   paused: boolean
   onTogglePaused: () => void
-  highAccuracy: boolean
-  onToggleHighAccuracy: () => void
 }
 
-export function TopBar({ groupName, accuracy, paused, onTogglePaused, highAccuracy, onToggleHighAccuracy }: Props) {
+export function TopBar({ groupName, accuracy, paused, onTogglePaused }: Props) {
   const { session, members } = useGroupStore()
   const [qrVisible, setQrVisible] = useState(false)
   const [qrUrl, setQrUrl] = useState('')
@@ -52,14 +50,6 @@ export function TopBar({ groupName, accuracy, paused, onTogglePaused, highAccura
         <span className={`text-xs font-medium ${accuracyColor}`}>
           {accuracy ? `±${Math.round(accuracy)}m` : '—'}
         </span>
-
-        <button
-          onClick={onToggleHighAccuracy}
-          title={highAccuracy ? 'GPS on — tap to save battery' : 'Network location — tap for GPS'}
-          className={`text-xl w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${highAccuracy ? 'bg-green-900/60' : ''}`}
-        >
-          🎯
-        </button>
 
         <button
           onClick={onTogglePaused}

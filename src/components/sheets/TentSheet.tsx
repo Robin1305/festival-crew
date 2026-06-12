@@ -19,7 +19,7 @@ export function TentSheet({ onDropOnMap }: Props) {
   const myTent = session ? tents.find((t) => t.member_id === session.memberId) : null
   const me = session ? members.find((m) => m.id === session.memberId) : null
 
-  const [tentName, setTentName] = useState(() => myTent?.name ?? 'My Tent')
+  const [tentName, setTentName] = useState(() => myTent?.name ?? session?.displayName ?? 'My Tent')
   const [tentColor, setTentColor] = useState(() => myTent?.color ?? '#f59e0b')
   const [moving, setMoving] = useState(false)
 
@@ -86,7 +86,7 @@ export function TentSheet({ onDropOnMap }: Props) {
         </div>
 
         <div className="flex items-center px-4 pb-3 border-b border-zinc-800">
-          <h2 className="text-white font-semibold text-base">My Tent</h2>
+          <h2 className="text-white font-semibold text-base">{myTent ? myTent.name : 'My Tent'}</h2>
           <button
             onClick={() => setActiveSheet('none')}
             className="ml-auto text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center"
