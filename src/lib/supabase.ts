@@ -64,3 +64,14 @@ export interface Tent {
   lng: number
   created_at: string
 }
+
+export interface Car {
+  id: string
+  group_code: string
+  member_id: string
+  name: string
+  color: string
+  lat: number
+  lng: number
+  created_at: string
+}

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import { useGroupStore } from '../store/group'
-import { POI_ICONS } from '../data/southside'
+import { POI_ICONS, SOUTHSIDE_ZONES } from '../data/southside'
 import { haversineDistance, getBearing, getCompassDirection, formatDistance } from '../lib/group-code'
 
 const STALE_MS = 2 * 60 * 1000
@@ -11,9 +11,7 @@ function makeFriendIcon(color: string, initial: string, stale: boolean) {
     className: 'friend-marker',
     iconAnchor: [18, 30],
     html: `
-      <div class="friend-dot ${stale ? 'stale' : ''}" style="background:${color}">
-        ${initial}
-      </div>
+      <div class="friend-dot ${stale ? 'stale' : ''}" style="background:${color}">${initial}</div>
       <div class="friend-name">${initial}</div>
     `,
   })
@@ -35,14 +33,14 @@ function makeMeetPinIcon(label: string) {
   })
 }
 
-function getTentSize(zoom: number): number {
+function getSpotSize(zoom: number): number {
   if (zoom <= 13) return 18
   if (zoom <= 15) return 24
   if (zoom <= 17) return 30
   return 36
 }
 
-function makeTentIcon(color: string, size: number) {
+function makeSpotIcon(emoji: string, color: string, size: number) {
   const half = size / 2
   return L.divIcon({
     className: '',
@@ -50,27 +48,30 @@ function makeTentIcon(color: string, size: number) {
     iconSize: [size, size],
     html: `<div style="
       width:${size}px;height:${size}px;
-      background:${color};
-      border-radius:50%;
+      background:${color};border-radius:50%;
       border:2px solid rgba(255,255,255,0.9);
       display:flex;align-items:center;justify-content:center;
-      font-size:${Math.round(size * 0.55)}px;
-      box-shadow:0 2px 6px rgba(0,0,0,0.5);
-      line-height:1;
-    ">⛺</div>`,
+      font-size:${Math.round(size * 0.55)}px;line-height:1;
+      box-shadow:0 2px 6px rgba(0,0,0,0.4);
+    ">${emoji}</div>`,
   })
 }
 
-interface MapViewProps {
-  dropping: boolean
-  onDrop: (lat: number, lng: number) => void
-  onStopDropping: () => void
-  droppingTent: boolean
-  onDropTent: (lat: number, lng: number) => void
-  onStopDroppingTent: () => void
+export type DroppingMode = 'pin' | 'tent' | 'car' | null
+
+const DROPPING_LABELS: Record<string, string> = {
+  pin: 'Tap the map to place your pin',
+  tent: 'Tap the map to place your tent ⛺',
+  car: 'Tap the map to mark your car 🚗',
 }
 
-export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDropTent, onStopDroppingTent }: MapViewProps) {
+interface MapViewProps {
+  droppingMode: DroppingMode
+  onDropped: (lat: number, lng: number) => void
+  onCancelDrop?: () => void
+}
+
+export function MapView({ droppingMode, onDropped }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const leafletRef = useRef<L.Map | null>(null)
   const markersRef = useRef<Map<string, L.Marker>>(new Map())
@@ -78,10 +79,11 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
   const poiMarkersRef = useRef<Map<string, L.Marker>>(new Map())
   const pinMarkersRef = useRef<Map<string, L.Marker>>(new Map())
   const tentMarkersRef = useRef<Map<string, L.Marker>>(new Map())
+  const carMarkersRef = useRef<Map<string, L.Marker>>(new Map())
 
-  const { session, members, pois, pins, tents, flyToTarget, clearFlyTo, setActiveSheet } = useGroupStore()
+  const { session, members, pois, pins, tents, cars, flyToTarget, clearFlyTo, setActiveSheet } = useGroupStore()
 
-  // Init map
+  // Init map + static zone overlay
   useEffect(() => {
     if (!mapRef.current || leafletRef.current) return
 
@@ -99,6 +101,26 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
       maxZoom: 22,
     }).addTo(map)
 
+    // Festival zone overlays (rough coordinates — calibrate at venue)
+    for (const zone of SOUTHSIDE_ZONES) {
+      const geojson: GeoJSON.Feature = {
+        type: 'Feature',
+        properties: { label: zone.label },
+        geometry: { type: 'Polygon', coordinates: [zone.coords] },
+      }
+      L.geoJSON(geojson, {
+        style: {
+          fillColor: zone.color,
+          fillOpacity: 0.15,
+          color: zone.color,
+          weight: 1.5,
+          opacity: 0.6,
+        },
+      })
+        .bindTooltip(zone.label, { sticky: true, direction: 'center', className: 'zone-tooltip' })
+        .addTo(map)
+    }
+
     map.setView([47.9055, 8.834], 15)
     leafletRef.current = map
 
@@ -108,69 +130,44 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
     }
   }, []) // eslint-disable-line
 
-  // React to flyTo requests from store
+  // flyTo from store
   useEffect(() => {
     if (!flyToTarget || !leafletRef.current) return
     leafletRef.current.setView(flyToTarget, 17, { animate: true })
     clearFlyTo()
   }, [flyToTarget, clearFlyTo])
 
-  // Drop-pin mode: tap map to place meet-me pin
+  // Drop mode: one handler for all modes
   useEffect(() => {
     const map = leafletRef.current
-    if (!map || !dropping) return
+    if (!map || !droppingMode) return
     const handler = (e: L.LeafletMouseEvent) => {
-      onDrop(e.latlng.lat, e.latlng.lng)
-      onStopDropping()
+      onDropped(e.latlng.lat, e.latlng.lng)
     }
     map.once('click', handler)
     return () => { map.off('click', handler) }
-  }, [dropping, onDrop, onStopDropping])
+  }, [droppingMode, onDropped])
 
-  // Drop-tent mode: tap map to place tent
-  useEffect(() => {
-    const map = leafletRef.current
-    if (!map || !droppingTent) return
-    const handler = (e: L.LeafletMouseEvent) => {
-      onDropTent(e.latlng.lat, e.latlng.lng)
-      onStopDroppingTent()
-    }
-    map.once('click', handler)
-    return () => { map.off('click', handler) }
-  }, [droppingTent, onDropTent, onStopDroppingTent])
-
-  // Update friend markers
+  // Friend markers
   useEffect(() => {
     const map = leafletRef.current
     if (!map) return
-
     const now = Date.now()
     const existingIds = new Set(markersRef.current.keys())
 
     for (const m of members) {
       if (!m.lat || !m.lng) continue
-
       const stale = now - new Date(m.last_seen).getTime() > STALE_MS
-      const initial = m.display_name[0].toUpperCase()
-      const icon = makeFriendIcon(m.color, initial, stale)
+      const icon = makeFriendIcon(m.color, m.display_name[0].toUpperCase(), stale)
       const isMe = m.id === session?.memberId
-
       existingIds.delete(m.id)
 
       if (markersRef.current.has(m.id)) {
         const marker = markersRef.current.get(m.id)!
-        marker.setLatLng([m.lat, m.lng])
-        marker.setIcon(icon)
+        marker.setLatLng([m.lat, m.lng]).setIcon(icon)
       } else {
-        const marker = L.marker([m.lat, m.lng], { icon, zIndexOffset: isMe ? 1000 : 0 })
-          .addTo(map)
-
-        if (!isMe) {
-          marker.on('click', () => {
-            setActiveSheet('friend-detail', m.id)
-          })
-        }
-
+        const marker = L.marker([m.lat, m.lng], { icon, zIndexOffset: isMe ? 1000 : 0 }).addTo(map)
+        if (!isMe) marker.on('click', () => setActiveSheet('friend-detail', m.id))
         markersRef.current.set(m.id, marker)
       }
 
@@ -178,13 +175,7 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
         if (accuracyRingsRef.current.has(m.id)) {
           accuracyRingsRef.current.get(m.id)!.setLatLng([m.lat, m.lng]).setRadius(m.accuracy_m)
         } else {
-          const ring = L.circle([m.lat, m.lng], {
-            radius: m.accuracy_m,
-            color: m.color,
-            fillColor: m.color,
-            fillOpacity: 0.08,
-            weight: 1,
-          }).addTo(map)
+          const ring = L.circle([m.lat, m.lng], { radius: m.accuracy_m, color: m.color, fillColor: m.color, fillOpacity: 0.08, weight: 1 }).addTo(map)
           accuracyRingsRef.current.set(m.id, ring)
         }
       } else {
@@ -194,10 +185,8 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
     }
 
     for (const id of existingIds) {
-      markersRef.current.get(id)?.remove()
-      markersRef.current.delete(id)
-      accuracyRingsRef.current.get(id)?.remove()
-      accuracyRingsRef.current.delete(id)
+      markersRef.current.get(id)?.remove(); markersRef.current.delete(id)
+      accuracyRingsRef.current.get(id)?.remove(); accuracyRingsRef.current.delete(id)
     }
   }, [members, session?.memberId, setActiveSheet])
 
@@ -205,104 +194,99 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
   useEffect(() => {
     const map = leafletRef.current
     if (!map) return
-
     const existingIds = new Set(poiMarkersRef.current.keys())
-
     for (const poi of pois) {
       existingIds.delete(poi.id)
       if (poiMarkersRef.current.has(poi.id)) continue
-
       const emoji = POI_ICONS[poi.icon] ?? '📍'
-      const icon = makePoiIcon(emoji)
-      const marker = L.marker([poi.lat, poi.lng], { icon, zIndexOffset: -100 })
-        .addTo(map)
-        .bindTooltip(poi.label, { permanent: false, direction: 'top' })
+      const marker = L.marker([poi.lat, poi.lng], { icon: makePoiIcon(emoji), zIndexOffset: -100 })
+        .addTo(map).bindTooltip(poi.label, { direction: 'top' })
       poiMarkersRef.current.set(poi.id, marker)
     }
-
-    for (const id of existingIds) {
-      poiMarkersRef.current.get(id)?.remove()
-      poiMarkersRef.current.delete(id)
-    }
+    for (const id of existingIds) { poiMarkersRef.current.get(id)?.remove(); poiMarkersRef.current.delete(id) }
   }, [pois])
 
   // Meet-me pin markers
   useEffect(() => {
     const map = leafletRef.current
     if (!map) return
-
     const now = Date.now()
     const existingIds = new Set(pinMarkersRef.current.keys())
-
     for (const pin of pins) {
       if (new Date(pin.expires_at).getTime() < now) continue
       existingIds.delete(pin.id)
       if (pinMarkersRef.current.has(pin.id)) continue
-
-      const icon = makeMeetPinIcon(pin.label)
-      const marker = L.marker([pin.lat, pin.lng], { icon, zIndexOffset: 500 })
-        .addTo(map)
-        .bindTooltip(pin.label, { permanent: false, direction: 'top' })
+      const marker = L.marker([pin.lat, pin.lng], { icon: makeMeetPinIcon(pin.label), zIndexOffset: 500 })
+        .addTo(map).bindTooltip(pin.label, { direction: 'top' })
       pinMarkersRef.current.set(pin.id, marker)
     }
-
-    for (const id of existingIds) {
-      pinMarkersRef.current.get(id)?.remove()
-      pinMarkersRef.current.delete(id)
-    }
+    for (const id of existingIds) { pinMarkersRef.current.get(id)?.remove(); pinMarkersRef.current.delete(id) }
   }, [pins])
 
-  // Tent markers — recreate on tent/member changes
+  // Tent markers
   useEffect(() => {
     const map = leafletRef.current
     if (!map) return
-
     const zoom = map.getZoom() ?? 15
     const existingIds = new Set(tentMarkersRef.current.keys())
-
     for (const tent of tents) {
       existingIds.delete(tent.id)
-      const size = getTentSize(zoom)
-      const icon = makeTentIcon(tent.color, size)
-
+      const icon = makeSpotIcon('⛺', tent.color, getSpotSize(zoom))
       if (tentMarkersRef.current.has(tent.id)) {
-        const marker = tentMarkersRef.current.get(tent.id)!
-        marker.setLatLng([tent.lat, tent.lng])
-        marker.setIcon(icon)
+        tentMarkersRef.current.get(tent.id)!.setLatLng([tent.lat, tent.lng]).setIcon(icon)
       } else {
         const owner = members.find((m) => m.id === tent.member_id)
-        const ownerName = owner?.display_name ?? 'Someone'
         const marker = L.marker([tent.lat, tent.lng], { icon, zIndexOffset: 200 })
           .addTo(map)
-          .bindPopup(`<div style="font-weight:700;font-size:14px;margin-bottom:2px">${tent.name}</div><div style="color:#555;font-size:12px">${ownerName}'s tent</div>`, { maxWidth: 180 })
+          .bindPopup(`<b style="font-size:14px">${tent.name}</b><br><span style="color:#555;font-size:12px">${owner?.display_name ?? '?'}'s tent</span>`)
         tentMarkersRef.current.set(tent.id, marker)
       }
     }
-
-    for (const id of existingIds) {
-      tentMarkersRef.current.get(id)?.remove()
-      tentMarkersRef.current.delete(id)
-    }
+    for (const id of existingIds) { tentMarkersRef.current.get(id)?.remove(); tentMarkersRef.current.delete(id) }
   }, [tents, members])
 
-  // Scale tent markers on zoom
+  // Car markers
   useEffect(() => {
     const map = leafletRef.current
     if (!map) return
+    const zoom = map.getZoom() ?? 15
+    const existingIds = new Set(carMarkersRef.current.keys())
+    for (const car of cars) {
+      existingIds.delete(car.id)
+      const icon = makeSpotIcon('🚗', car.color, getSpotSize(zoom))
+      if (carMarkersRef.current.has(car.id)) {
+        carMarkersRef.current.get(car.id)!.setLatLng([car.lat, car.lng]).setIcon(icon)
+      } else {
+        const owner = members.find((m) => m.id === car.member_id)
+        const marker = L.marker([car.lat, car.lng], { icon, zIndexOffset: 200 })
+          .addTo(map)
+          .bindPopup(`<b style="font-size:14px">${car.name}</b><br><span style="color:#555;font-size:12px">${owner?.display_name ?? '?'}'s car</span>`)
+        carMarkersRef.current.set(car.id, marker)
+      }
+    }
+    for (const id of existingIds) { carMarkersRef.current.get(id)?.remove(); carMarkersRef.current.delete(id) }
+  }, [cars, members])
 
+  // Scale spot markers on zoom
+  useEffect(() => {
+    const map = leafletRef.current
+    if (!map) return
     const handler = () => {
       const zoom = map.getZoom()
       for (const [id, marker] of tentMarkersRef.current) {
-        const tent = tents.find((t) => t.id === id)
-        if (tent) marker.setIcon(makeTentIcon(tent.color, getTentSize(zoom)))
+        const t = tents.find((x) => x.id === id)
+        if (t) marker.setIcon(makeSpotIcon('⛺', t.color, getSpotSize(zoom)))
+      }
+      for (const [id, marker] of carMarkersRef.current) {
+        const c = cars.find((x) => x.id === id)
+        if (c) marker.setIcon(makeSpotIcon('🚗', c.color, getSpotSize(zoom)))
       }
     }
-
     map.on('zoomend', handler)
     return () => { map.off('zoomend', handler) }
-  }, [tents])
+  }, [tents, cars])
 
-  // Auto-fit to members on initial load
+  // Auto-fit to members on first load
   const initialFit = useRef(false)
   useEffect(() => {
     const map = leafletRef.current
@@ -310,8 +294,7 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
     const located = members.filter((m) => m.lat && m.lng)
     if (located.length === 0) return
     initialFit.current = true
-    const bounds = L.latLngBounds(located.map((m) => [m.lat!, m.lng!]))
-    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 })
+    map.fitBounds(L.latLngBounds(located.map((m) => [m.lat!, m.lng!])), { padding: [60, 60], maxZoom: 17 })
   }, [members])
 
   const locateMe = () => {
@@ -325,22 +308,17 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
     <div className="relative flex-1 overflow-hidden">
       <div ref={mapRef} className="absolute inset-0" />
 
-      {dropping && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-200 text-sm font-medium px-4 py-2 rounded-full z-10 shadow-lg pointer-events-none">
-          Tap the map to place your pin
+      {droppingMode && (
+        <div
+          className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-200 text-sm font-medium px-4 py-2 rounded-full z-10 shadow-lg pointer-events-none"
+        >
+          {DROPPING_LABELS[droppingMode]}
         </div>
       )}
 
-      {droppingTent && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-200 text-sm font-medium px-4 py-2 rounded-full z-10 shadow-lg pointer-events-none">
-          Tap the map to place your tent ⛺
-        </div>
-      )}
-
-      {/* Locate-me button — navigation arrow, always gray */}
       <button
         onClick={locateMe}
-        className="absolute bottom-4 right-4 w-14 h-14 rounded-full bg-zinc-900/90 border border-zinc-700 text-zinc-300 flex items-center justify-center shadow-lg active:scale-95 transition-all z-10"
+        className="absolute bottom-4 right-4 w-14 h-14 rounded-full bg-white/90 border border-zinc-200 text-zinc-600 flex items-center justify-center shadow-lg active:scale-95 transition-all z-10"
         title="Center on my location"
       >
         <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current">
@@ -357,37 +335,25 @@ export function FriendDetailCard() {
   const friend = members.find((m) => m.id === selectedMemberId)
 
   useEffect(() => {
-    if (friend?.lat && friend?.lng) {
-      flyTo(friend.lat, friend.lng)
-    }
+    if (friend?.lat && friend?.lng) flyTo(friend.lat, friend.lng)
   }, [selectedMemberId]) // eslint-disable-line
 
   if (!friend || !selectedMemberId) return null
 
   const stale = Date.now() - new Date(friend.last_seen).getTime() > STALE_MS
+  const minAgo = Math.floor((Date.now() - new Date(friend.last_seen).getTime()) / 60000)
 
   let distance: string | null = null
   let direction: string | null = null
-
   if (me?.lat && me?.lng && friend.lat && friend.lng) {
-    const dist = haversineDistance(me.lat, me.lng, friend.lat, friend.lng)
-    const bearing = getBearing(me.lat, me.lng, friend.lat, friend.lng)
-    distance = formatDistance(dist)
-    direction = getCompassDirection(bearing)
+    distance = formatDistance(haversineDistance(me.lat, me.lng, friend.lat, friend.lng))
+    direction = getCompassDirection(getBearing(me.lat, me.lng, friend.lat, friend.lng))
   }
 
-  const minAgo = Math.floor((Date.now() - new Date(friend.last_seen).getTime()) / 60000)
-
   return (
-    <div
-      className="absolute bottom-24 left-4 right-4 rounded-2xl bg-zinc-900 border border-zinc-700 p-4 z-20 shadow-xl"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="absolute bottom-24 left-4 right-4 rounded-2xl bg-zinc-900 border border-zinc-700 p-4 z-20 shadow-xl" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-3 mb-3">
-        <div
-          className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-xl shrink-0 ${stale ? 'opacity-50' : ''}`}
-          style={{ background: friend.color }}
-        >
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-xl shrink-0 ${stale ? 'opacity-50' : ''}`} style={{ background: friend.color }}>
           {friend.display_name[0].toUpperCase()}
         </div>
         <div className="flex-1">
@@ -396,11 +362,8 @@ export function FriendDetailCard() {
             {stale ? `offline · ${minAgo}m ago` : minAgo < 1 ? 'online now' : `${minAgo}m ago`}
           </div>
         </div>
-        <button onClick={() => setActiveSheet('none')} className="text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center">
-          ×
-        </button>
+        <button onClick={() => setActiveSheet('none')} className="text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center">×</button>
       </div>
-
       {distance && direction ? (
         <div className="bg-zinc-800 rounded-xl p-3 text-center">
           <span className="text-3xl font-bold text-white">{distance}</span>

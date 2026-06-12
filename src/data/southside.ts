@@ -1,6 +1,6 @@
 // Southside Festival 2026 — Take-Off GewerbePark, Neuhausen ob Eck
-// Coordinates approximated from official festival grounds map:
-// southside.de/en/info/site-maps/
+// POI coordinates approximated from official festival grounds map.
+// Zone polygons are rough estimates — calibrate at the venue.
 
 export const SOUTHSIDE_CENTER: [number, number] = [47.9055, 8.834]
 
@@ -12,9 +12,14 @@ export const SOUTHSIDE_POIS = [
   { label: 'Electric Wave X', icon: 'stage', lat: 47.9035, lng: 8.834 },
   { label: 'West Entrance', icon: 'entrance', lat: 47.9068, lng: 8.828 },
   { label: 'East Entrance', icon: 'entrance', lat: 47.9068, lng: 8.842 },
-  { label: 'Medical / First Aid', icon: 'medical', lat: 47.905, lng: 8.834 },
+  { label: 'Erste Hilfe / First Aid', icon: 'medical', lat: 47.905, lng: 8.834 },
   { label: 'Info Point', icon: 'info', lat: 47.9065, lng: 8.832 },
-  { label: 'Camping (Outfield)', icon: 'camping', lat: 47.9025, lng: 8.83 },
+  { label: 'Toiletten (Infield)', icon: 'toilet', lat: 47.9058, lng: 8.8355 },
+  { label: 'Toiletten (Camping)', icon: 'toilet', lat: 47.9085, lng: 8.827 },
+  { label: 'Toiletten (Parking)', icon: 'toilet', lat: 47.9015, lng: 8.831 },
+  { label: 'Duschen', icon: 'shower', lat: 47.908, lng: 8.829 },
+  { label: 'Trinkwasser', icon: 'water', lat: 47.907, lng: 8.831 },
+  { label: 'Camping Outfield', icon: 'camping', lat: 47.9025, lng: 8.83 },
 ]
 
 export const POI_ICONS: Record<string, string> = {
@@ -24,7 +29,66 @@ export const POI_ICONS: Record<string, string> = {
   info: 'ℹ️',
   camping: '⛺',
   bar: '🍺',
-  toilet: '🚽',
+  toilet: '🚻',
+  shower: '🚿',
+  water: '💧',
   food: '🍔',
   custom: '📍',
 }
+
+// Zone overlays — rough polygons from the 2026 outfield map.
+// Coordinates [lng, lat] per GeoJSON spec.
+// Calibrate these by comparing to OSM tiles at the venue.
+export interface ZoneFeature {
+  label: string
+  color: string
+  // polygon ring: array of [lng, lat] pairs
+  coords: [number, number][]
+}
+
+export const SOUTHSIDE_ZONES: ZoneFeature[] = [
+  {
+    label: 'Camping Regular (A1–A8)',
+    color: '#84cc16', // lime green
+    coords: [
+      [8.820, 47.904],
+      [8.832, 47.904],
+      [8.832, 47.913],
+      [8.820, 47.913],
+      [8.820, 47.904],
+    ],
+  },
+  {
+    label: 'Infield',
+    color: '#dc2626', // red
+    coords: [
+      [8.832, 47.906],
+      [8.842, 47.906],
+      [8.842, 47.911],
+      [8.832, 47.911],
+      [8.832, 47.906],
+    ],
+  },
+  {
+    label: 'Parking Süd (P1–P7)',
+    color: '#3b82f6', // blue
+    coords: [
+      [8.820, 47.898],
+      [8.840, 47.898],
+      [8.840, 47.903],
+      [8.820, 47.903],
+      [8.820, 47.898],
+    ],
+  },
+  {
+    label: 'Parking Ost (P8–P12)',
+    color: '#6366f1', // indigo
+    coords: [
+      [8.840, 47.898],
+      [8.850, 47.898],
+      [8.850, 47.910],
+      [8.840, 47.910],
+      [8.840, 47.898],
+    ],
+  },
+]

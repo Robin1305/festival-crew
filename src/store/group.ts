@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Member, BulletinPost, MeetPin, Poi, Tent } from '../lib/supabase'
+import type { Member, BulletinPost, MeetPin, Poi, Tent, Car } from '../lib/supabase'
 
 export interface Session {
   groupCode: string
@@ -15,7 +15,8 @@ interface GroupStore {
   posts: BulletinPost[]
   pins: MeetPin[]
   tents: Tent[]
-  activeSheet: 'none' | 'bulletin' | 'friends' | 'pin' | 'friend-detail' | 'tent'
+  cars: Car[]
+  activeSheet: 'none' | 'bulletin' | 'friends' | 'pin' | 'friend-detail' | 'spots'
   selectedMemberId: string | null
   unreadPosts: number
   newPostAlert: BulletinPost | null
@@ -34,6 +35,9 @@ interface GroupStore {
   setTents: (t: Tent[]) => void
   upsertTent: (t: Tent) => void
   removeTent: (id: string) => void
+  setCars: (c: Car[]) => void
+  upsertCar: (c: Car) => void
+  removeCar: (id: string) => void
   setActiveSheet: (s: GroupStore['activeSheet'], memberId?: string) => void
   markPostsRead: () => void
   clearNewPostAlert: () => void
@@ -68,6 +72,7 @@ export const useGroupStore = create<GroupStore>((set) => ({
   posts: [],
   pins: [],
   tents: [],
+  cars: [],
   activeSheet: 'none',
   selectedMemberId: null,
   unreadPosts: 0,
@@ -75,7 +80,6 @@ export const useGroupStore = create<GroupStore>((set) => ({
   flyToTarget: null,
 
   setSession: (s) => set({ session: s }),
-
   setMembers: (members) => set({ members }),
 
   upsertMember: (m) =>
@@ -93,7 +97,6 @@ export const useGroupStore = create<GroupStore>((set) => ({
     set((state) => ({ members: state.members.filter((m) => m.id !== id) })),
 
   setPois: (pois) => set({ pois }),
-
   setPosts: (posts) => set({ posts }),
 
   addPost: (p) =>
@@ -129,6 +132,22 @@ export const useGroupStore = create<GroupStore>((set) => ({
   removeTent: (id) =>
     set((state) => ({ tents: state.tents.filter((t) => t.id !== id) })),
 
+  setCars: (cars) => set({ cars }),
+
+  upsertCar: (c) =>
+    set((state) => {
+      const idx = state.cars.findIndex((x) => x.id === c.id || x.member_id === c.member_id)
+      if (idx >= 0) {
+        const updated = [...state.cars]
+        updated[idx] = c
+        return { cars: updated }
+      }
+      return { cars: [...state.cars, c] }
+    }),
+
+  removeCar: (id) =>
+    set((state) => ({ cars: state.cars.filter((c) => c.id !== id) })),
+
   setActiveSheet: (activeSheet, memberId) =>
     set((state) => ({
       activeSheet,
@@ -138,10 +157,7 @@ export const useGroupStore = create<GroupStore>((set) => ({
     })),
 
   markPostsRead: () => set({ unreadPosts: 0 }),
-
   clearNewPostAlert: () => set({ newPostAlert: null }),
-
   flyTo: (lat, lng) => set({ flyToTarget: [lat, lng] }),
-
   clearFlyTo: () => set({ flyToTarget: null }),
 }))
