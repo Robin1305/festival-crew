@@ -4,14 +4,14 @@ import { useGroupStore } from '../store/group'
 import { POI_ICONS } from '../data/southside'
 import { haversineDistance, getBearing, getCompassDirection, formatDistance } from '../lib/group-code'
 
-const STALE_MS = 5 * 60 * 1000
+const STALE_MS = 2 * 60 * 1000 // 2 min = offline
 
-function makeFriendIcon(color: string, initial: string, stale: boolean, sos: boolean) {
+function makeFriendIcon(color: string, initial: string, stale: boolean) {
   return L.divIcon({
     className: 'friend-marker',
-    iconAnchor: [18, 18],
+    iconAnchor: [18, 30],
     html: `
-      <div class="friend-dot ${stale ? 'stale' : ''} ${sos ? 'sos' : ''}" style="background:${sos ? '#dc2626' : color}">
+      <div class="friend-dot ${stale ? 'stale' : ''}" style="background:${color}">
         ${initial}
       </div>
       <div class="friend-name">${initial}</div>
@@ -27,11 +27,11 @@ function makePoiIcon(emoji: string) {
   })
 }
 
-function makeMeetPinIcon() {
+function makeMeetPinIcon(label: string) {
   return L.divIcon({
     className: 'meet-pin',
     iconAnchor: [16, 16],
-    html: `<div class="meet-pin-inner">📍</div>`,
+    html: `<div class="meet-pin-inner" title="${label}">📍</div>`,
   })
 }
 
@@ -50,7 +50,7 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
   const pinMarkersRef = useRef<Map<string, L.Marker>>(new Map())
   const [tracking, setTracking] = useState(false)
 
-  const { session, members, pois, pins, setActiveSheet } = useGroupStore()
+  const { session, members, pois, pins, flyToTarget, clearFlyTo, setActiveSheet } = useGroupStore()
 
   // Init map
   useEffect(() => {
@@ -76,12 +76,17 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
     }
   }, []) // eslint-disable-line
 
+  // React to flyTo requests from store
+  useEffect(() => {
+    if (!flyToTarget || !leafletRef.current) return
+    leafletRef.current.setView(flyToTarget, 17, { animate: true })
+    clearFlyTo()
+  }, [flyToTarget, clearFlyTo])
+
   // Drop-pin mode: tap map to place
   useEffect(() => {
     const map = leafletRef.current
-    if (!map) return
-
-    if (!dropping) return
+    if (!map || !dropping) return
 
     const handler = (e: L.LeafletMouseEvent) => {
       onDrop(e.latlng.lat, e.latlng.lng)
@@ -105,7 +110,7 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
 
       const stale = now - new Date(m.last_seen).getTime() > STALE_MS
       const initial = m.display_name[0].toUpperCase()
-      const icon = makeFriendIcon(m.color, initial, stale, m.is_sos)
+      const icon = makeFriendIcon(m.color, initial, stale)
       const isMe = m.id === session?.memberId
 
       existingIds.delete(m.id)
@@ -117,10 +122,11 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
       } else {
         const marker = L.marker([m.lat, m.lng], { icon, zIndexOffset: isMe ? 1000 : 0 })
           .addTo(map)
-          .bindTooltip(m.display_name, { permanent: false, direction: 'top' })
 
         if (!isMe) {
-          marker.on('click', () => setActiveSheet('friend-detail', m.id))
+          marker.on('click', () => {
+            setActiveSheet('friend-detail', m.id)
+          })
         }
 
         markersRef.current.set(m.id, marker)
@@ -146,7 +152,6 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
       }
     }
 
-    // Remove gone members
     for (const id of existingIds) {
       markersRef.current.get(id)?.remove()
       markersRef.current.delete(id)
@@ -193,10 +198,10 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
       existingIds.delete(pin.id)
       if (pinMarkersRef.current.has(pin.id)) continue
 
-      const icon = makeMeetPinIcon()
+      const icon = makeMeetPinIcon(pin.label)
       const marker = L.marker([pin.lat, pin.lng], { icon, zIndexOffset: 500 })
         .addTo(map)
-        .bindTooltip(`${pin.label}`, { permanent: false, direction: 'top' })
+        .bindTooltip(pin.label, { permanent: false, direction: 'top' })
       pinMarkersRef.current.set(pin.id, marker)
     }
 
@@ -230,7 +235,7 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
   const locateMe = () => {
     const me = session && members.find((m) => m.id === session.memberId)
     if (me?.lat && me?.lng && leafletRef.current) {
-      leafletRef.current.setView([me.lat, me.lng], 17)
+      leafletRef.current.setView([me.lat, me.lng], 17, { animate: true })
     }
     setTracking((t) => !t)
   }
@@ -239,24 +244,42 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
     <div className="relative flex-1 overflow-hidden">
       <div ref={mapRef} className="absolute inset-0" />
 
-      {/* Locate-me button */}
+      {dropping && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-200 text-sm font-medium px-4 py-2 rounded-full z-10 shadow-lg">
+          Tap the map to place your pin
+        </div>
+      )}
+
+      {/* Locate-me button — navigation arrow */}
       <button
         onClick={locateMe}
-        className="absolute bottom-4 right-4 w-14 h-14 rounded-full bg-zinc-900/90 border border-zinc-700 text-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform z-10"
+        className={`absolute bottom-4 right-4 w-14 h-14 rounded-full border flex items-center justify-center shadow-lg active:scale-95 transition-all z-10
+          ${tracking ? 'bg-rose-600 border-rose-500 text-white' : 'bg-zinc-900/90 border-zinc-700 text-zinc-300'}`}
         title="Center on my location"
       >
-        {tracking ? '🎯' : '⊕'}
+        <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current">
+          <path d="M12 2L4 20l8-4 8 4L12 2z" />
+        </svg>
       </button>
     </div>
   )
 }
 
 export function FriendDetailCard() {
-  const { members, session, selectedMemberId, setActiveSheet } = useGroupStore()
+  const { members, session, selectedMemberId, setActiveSheet, flyTo } = useGroupStore()
   const me = session && members.find((m) => m.id === session.memberId)
   const friend = members.find((m) => m.id === selectedMemberId)
 
+  // Fly to friend when card opens
+  useEffect(() => {
+    if (friend?.lat && friend?.lng) {
+      flyTo(friend.lat, friend.lng)
+    }
+  }, [selectedMemberId]) // eslint-disable-line
+
   if (!friend || !selectedMemberId) return null
+
+  const stale = Date.now() - new Date(friend.last_seen).getTime() > STALE_MS
 
   let distance: string | null = null
   let direction: string | null = null
@@ -268,44 +291,38 @@ export function FriendDetailCard() {
     direction = getCompassDirection(bearing)
   }
 
-  const lastSeen = new Date(friend.last_seen)
-  const minAgo = Math.floor((Date.now() - lastSeen.getTime()) / 60000)
+  const minAgo = Math.floor((Date.now() - new Date(friend.last_seen).getTime()) / 60000)
 
   return (
     <div
-      className="absolute bottom-20 left-0 right-0 mx-4 rounded-2xl bg-zinc-900 border border-zinc-700 p-4 z-20 shadow-xl"
+      className="absolute bottom-24 left-4 right-4 rounded-2xl bg-zinc-900 border border-zinc-700 p-4 z-20 shadow-xl"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-3 mb-3">
         <div
-          className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-lg"
+          className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-xl shrink-0 ${stale ? 'opacity-50' : ''}`}
           style={{ background: friend.color }}
         >
           {friend.display_name[0].toUpperCase()}
         </div>
-        <div>
-          <div className="text-white font-semibold">{friend.display_name}</div>
-          <div className="text-zinc-400 text-xs">
-            {minAgo < 1 ? 'just now' : `${minAgo}m ago`}
+        <div className="flex-1">
+          <div className="text-white font-semibold text-lg">{friend.display_name}</div>
+          <div className={`text-xs ${stale ? 'text-red-400' : 'text-green-400'}`}>
+            {stale ? `offline · ${minAgo}m ago` : minAgo < 1 ? 'online now' : `${minAgo}m ago`}
           </div>
         </div>
-        <button
-          onClick={() => setActiveSheet('none')}
-          className="ml-auto text-zinc-400 text-xl"
-        >
+        <button onClick={() => setActiveSheet('none')} className="text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center">
           ×
         </button>
       </div>
 
-      {distance && direction && (
-        <div className="text-center py-2">
-          <span className="text-2xl font-bold text-white">{distance}</span>
-          <span className="text-zinc-400 ml-2">↗ {direction}</span>
+      {distance && direction ? (
+        <div className="bg-zinc-800 rounded-xl p-3 text-center">
+          <span className="text-3xl font-bold text-white">{distance}</span>
+          <span className="text-zinc-400 ml-2 text-lg">↗ {direction}</span>
         </div>
-      )}
-
-      {(!friend.lat || !friend.lng) && (
-        <p className="text-zinc-500 text-sm text-center">Location not shared yet</p>
+      ) : (
+        <p className="text-zinc-500 text-sm text-center py-2">Location not shared yet</p>
       )}
     </div>
   )

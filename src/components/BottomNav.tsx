@@ -1,35 +1,41 @@
 import { useGroupStore } from '../store/group'
 
 export function BottomNav() {
-  const { activeSheet, unreadPosts, setActiveSheet } = useGroupStore()
+  const { activeSheet, unreadPosts, pins, session, setActiveSheet } = useGroupStore()
+
+  const myPin = session ? pins.find((p) => p.created_by === session.memberId) : null
+  const pinActive = !!myPin && new Date(myPin.expires_at).getTime() > Date.now()
 
   const tabs = [
-    { id: 'none' as const, icon: '🗺', label: 'Map' },
     { id: 'friends' as const, icon: '👥', label: 'Friends' },
-    { id: 'bulletin' as const, icon: '📋', label: 'Board', badge: unreadPosts },
-    { id: 'sos' as const, icon: '🆘', label: 'SOS', red: true },
+    { id: 'bulletin' as const, icon: '💬', label: 'Messages', badge: unreadPosts },
+    { id: 'pin' as const, icon: '📍', label: 'Pin', active: pinActive },
   ]
 
   return (
-    <nav className="flex h-16 bg-zinc-950 border-t border-zinc-800 shrink-0">
+    <nav
+      className="flex bg-zinc-950 border-t border-zinc-800 shrink-0"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          onClick={() => setActiveSheet(tab.id)}
-          className={`flex-1 flex flex-col items-center justify-center gap-0.5 relative
-            ${tab.red ? 'bg-red-950 active:bg-red-900' : 'active:bg-zinc-800'}
-            ${activeSheet === tab.id && !tab.red ? 'text-rose-400' : tab.red ? 'text-red-400' : 'text-zinc-400'}
-            transition-colors`}
+          onClick={() => setActiveSheet(activeSheet === tab.id ? 'none' : tab.id)}
+          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 relative active:bg-zinc-800 transition-colors
+            ${activeSheet === tab.id ? 'text-rose-400' : tab.active ? 'text-amber-400' : 'text-zinc-400'}`}
         >
-          <span className="text-xl relative">
+          <span className="text-2xl relative">
             {tab.icon}
             {tab.badge != null && tab.badge > 0 && (
-              <span className="absolute -top-1 -right-2 bg-rose-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="absolute -top-1 -right-2 bg-rose-600 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5">
                 {tab.badge > 9 ? '9+' : tab.badge}
               </span>
             )}
+            {tab.active && tab.id === 'pin' && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-zinc-950" />
+            )}
           </span>
-          <span className="text-[10px] font-medium">{tab.label}</span>
+          <span className="text-[11px] font-medium">{tab.label}</span>
         </button>
       ))}
     </nav>

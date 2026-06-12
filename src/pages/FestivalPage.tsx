@@ -11,7 +11,7 @@ import { BottomNav } from '../components/BottomNav'
 import { TopBar } from '../components/TopBar'
 import { BulletinSheet } from '../components/sheets/BulletinSheet'
 import { FriendsSheet } from '../components/sheets/FriendsSheet'
-import { SosOverlay } from '../components/SosOverlay'
+import { PinSheet } from '../components/sheets/PinSheet'
 
 export function FestivalPage() {
   const { code } = useParams<{ code: string }>()
@@ -21,7 +21,6 @@ export function FestivalPage() {
   const [paused, setPaused] = useState(false)
   const [groupName, setGroupName] = useState('Festival Crew')
 
-  // Load session from localStorage on mount
   useEffect(() => {
     if (!code) return
     const existing = loadSession(code)
@@ -32,7 +31,6 @@ export function FestivalPage() {
     setSession(existing)
   }, [code, navigate, setSession])
 
-  // Load group name + POIs
   useEffect(() => {
     if (!code || !session) return
 
@@ -41,25 +39,19 @@ export function FestivalPage() {
       .select('name')
       .eq('code', code)
       .single()
-      .then(({ data }) => {
-        if (data) setGroupName(data.name)
-      })
+      .then(({ data }) => { if (data) setGroupName(data.name) })
 
     supabase
       .from('pois')
       .select('*')
       .eq('group_code', code)
-      .then(({ data }) => {
-        if (data) setPois(data)
-      })
+      .then(({ data }) => { if (data) setPois(data) })
   }, [code, session, setPois])
 
-  // Realtime subscriptions
   useRealtimeMembers(code ?? '')
   useRealtimePosts(code ?? '')
   useRealtimePins(code ?? '')
 
-  // Location publishing
   const { accuracy } = useLocationPublisher(session?.memberId, paused)
 
   const handleDrop = async (lat: number, lng: number) => {
@@ -77,18 +69,16 @@ export function FestivalPage() {
 
   if (!session) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-zinc-950">
+      <div className="flex items-center justify-center h-dvh bg-zinc-950">
         <span className="text-zinc-500">Loading...</span>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 overflow-hidden relative">
+    <div className="flex flex-col h-dvh bg-zinc-950 overflow-hidden relative">
       <TopBar
         groupName={groupName}
-        dropping={dropping}
-        onToggleDrop={() => setDropping((d) => !d)}
         accuracy={accuracy}
         paused={paused}
         onTogglePaused={() => setPaused((p) => !p)}
@@ -104,7 +94,7 @@ export function FestivalPage() {
 
       <BulletinSheet />
       <FriendsSheet />
-      <SosOverlay />
+      <PinSheet onDropOnMap={() => setDropping(true)} />
 
       <BottomNav />
     </div>

@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { useGroupStore, saveSession } from '../../store/group'
 import { colorFromName } from '../../lib/group-code'
 
+const ONLINE_MS = 2 * 60 * 1000
+
 function lastSeenLabel(dateStr: string): string {
   const min = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000)
   if (min < 1) return 'now'
@@ -11,7 +13,7 @@ function lastSeenLabel(dateStr: string): string {
 }
 
 export function FriendsSheet() {
-  const { activeSheet, members, session, setActiveSheet, setSession } = useGroupStore()
+  const { activeSheet, members, session, setActiveSheet, setSession, flyTo } = useGroupStore()
   const [editingName, setEditingName] = useState(false)
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -56,36 +58,49 @@ export function FriendsSheet() {
           <button onClick={() => setActiveSheet('none')} className="ml-auto text-zinc-400 text-2xl mt-2">×</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
           {sorted.map((m) => {
             const isMe = m.id === session?.memberId
-            const stale = Date.now() - new Date(m.last_seen).getTime() > 5 * 60 * 1000
+            const online = Date.now() - new Date(m.last_seen).getTime() < ONLINE_MS
             return (
-              <div key={m.id} className="flex items-center gap-3 py-2">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-lg shrink-0 ${stale ? 'opacity-40' : ''}`}
-                  style={{ background: m.color }}
-                >
-                  {m.display_name[0].toUpperCase()}
+              <button
+                key={m.id}
+                className="w-full flex items-center gap-3 py-3 px-1 rounded-xl active:bg-zinc-800 text-left"
+                onClick={() => {
+                  if (!isMe && m.lat && m.lng) {
+                    flyTo(m.lat, m.lng)
+                    setActiveSheet('friend-detail', m.id)
+                  } else if (isMe) {
+                    setEditingName(true)
+                    setNewName(m.display_name)
+                  }
+                }}
+              >
+                <div className="relative shrink-0">
+                  <div
+                    className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-xl ${!online ? 'opacity-40' : ''}`}
+                    style={{ background: m.color }}
+                  >
+                    {m.display_name[0].toUpperCase()}
+                  </div>
+                  <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-zinc-950 ${online ? 'bg-green-400' : 'bg-zinc-600'}`} />
                 </div>
                 <div className="flex-1">
                   <div className="text-white font-medium">
                     {m.display_name} {isMe && <span className="text-zinc-500 text-xs">(you)</span>}
                   </div>
-                  <div className={`text-xs ${stale ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                    {lastSeenLabel(m.last_seen)}
-                    {m.is_sos && ' · 🆘 needs help!'}
+                  <div className={`text-xs ${online ? 'text-green-400' : 'text-zinc-600'}`}>
+                    {online ? 'online' : `offline · ${lastSeenLabel(m.last_seen)}`}
                   </div>
                 </div>
-                {isMe && (
-                  <button
-                    onClick={() => { setEditingName(true); setNewName(m.display_name) }}
-                    className="text-zinc-500 text-sm"
-                  >
-                    edit
-                  </button>
-                )}
-              </div>
+                {isMe ? (
+                  <span className="text-zinc-500 text-sm pr-1">edit name</span>
+                ) : m.lat ? (
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-zinc-500 shrink-0">
+                    <path d="M12 2L4 20l8-4 8 4L12 2z" />
+                  </svg>
+                ) : null}
+              </button>
             )
           })}
         </div>

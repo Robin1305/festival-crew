@@ -14,9 +14,10 @@ interface GroupStore {
   pois: Poi[]
   posts: BulletinPost[]
   pins: MeetPin[]
-  activeSheet: 'none' | 'bulletin' | 'friends' | 'sos' | 'friend-detail' | 'name-change'
+  activeSheet: 'none' | 'bulletin' | 'friends' | 'pin' | 'friend-detail'
   selectedMemberId: string | null
   unreadPosts: number
+  flyToTarget: [number, number] | null
 
   setSession: (s: Session | null) => void
   setMembers: (m: Member[]) => void
@@ -30,6 +31,8 @@ interface GroupStore {
   removePin: (id: string) => void
   setActiveSheet: (s: GroupStore['activeSheet'], memberId?: string) => void
   markPostsRead: () => void
+  flyTo: (lat: number, lng: number) => void
+  clearFlyTo: () => void
 }
 
 const SESSION_KEY = 'festival-crew-session'
@@ -61,6 +64,7 @@ export const useGroupStore = create<GroupStore>((set) => ({
   activeSheet: 'none',
   selectedMemberId: null,
   unreadPosts: 0,
+  flyToTarget: null,
 
   setSession: (s) => set({ session: s }),
 
@@ -108,4 +112,8 @@ export const useGroupStore = create<GroupStore>((set) => ({
     }),
 
   markPostsRead: () => set({ unreadPosts: 0 }),
+
+  flyTo: (lat, lng) => set({ flyToTarget: [lat, lng] }),
+
+  clearFlyTo: () => set({ flyToTarget: null }),
 }))
