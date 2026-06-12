@@ -25,7 +25,16 @@ export function FestivalPage() {
   const [pendingTentName, setPendingTentName] = useState('My Tent')
   const [pendingTentColor, setPendingTentColor] = useState('#f59e0b')
   const [paused, setPaused] = useState(false)
+  const [highAccuracy, setHighAccuracy] = useState(() => localStorage.getItem('fc-high-accuracy') === '1')
   const [groupName, setGroupName] = useState('Festival Crew')
+
+  const toggleHighAccuracy = () => {
+    setHighAccuracy((v) => {
+      const next = !v
+      localStorage.setItem('fc-high-accuracy', next ? '1' : '0')
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!code) return
@@ -66,7 +75,7 @@ export function FestivalPage() {
   useRealtimePins(code ?? '')
   useRealtimeTents(code ?? '')
 
-  const { accuracy } = useLocationPublisher(session?.memberId, paused)
+  const { accuracy } = useLocationPublisher(session?.memberId, paused, highAccuracy)
 
   const handleDrop = async (lat: number, lng: number) => {
     if (!session) return
@@ -117,6 +126,8 @@ export function FestivalPage() {
         accuracy={accuracy}
         paused={paused}
         onTogglePaused={() => setPaused((p) => !p)}
+        highAccuracy={highAccuracy}
+        onToggleHighAccuracy={toggleHighAccuracy}
       />
 
       <MapView
