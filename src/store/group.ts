@@ -23,6 +23,7 @@ interface GroupStore {
   newPostAlert: BulletinPost | null
   flyToTarget: [number, number] | null
   adminMode: boolean
+  selfKicked: boolean
 
   setSession: (s: Session | null) => void
   setMembers: (m: Member[]) => void
@@ -42,6 +43,7 @@ interface GroupStore {
   removeCar: (id: string) => void
   setActiveSheet: (s: GroupStore['activeSheet'], memberId?: string) => void
   setAdminMode: (v: boolean) => void
+  setSelfKicked: (v: boolean) => void
   markPostsRead: () => void
   clearNewPostAlert: () => void
   flyTo: (lat: number, lng: number) => void
@@ -82,6 +84,7 @@ export const useGroupStore = create<GroupStore>((set) => ({
   newPostAlert: null,
   flyToTarget: null,
   adminMode: false,
+  selfKicked: false,
 
   setSession: (s) => set({ session: s }),
   setMembers: (members) => set({ members }),
@@ -163,6 +166,7 @@ export const useGroupStore = create<GroupStore>((set) => ({
   markPostsRead: () => set({ unreadPosts: 0 }),
   clearNewPostAlert: () => set({ newPostAlert: null }),
   setAdminMode: (v) => set({ adminMode: v }),
+  setSelfKicked: (v) => set({ selfKicked: v }),
   flyTo: (lat, lng) => set({ flyToTarget: [lat, lng] }),
   clearFlyTo: () => set({ flyToTarget: null }),
 }))

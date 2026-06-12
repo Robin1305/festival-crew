@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { loadSession, useGroupStore } from '../store/group'
+import { loadSession, clearSession, useGroupStore } from '../store/group'
 import { useRealtimeMembers } from '../hooks/useRealtimeMembers'
 import { useRealtimePosts } from '../hooks/useRealtimePosts'
 import { useRealtimePins } from '../hooks/useRealtimePins'
@@ -19,7 +19,7 @@ import { SpotSheet } from '../components/sheets/SpotSheet'
 export function FestivalPage() {
   const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
-  const { session, setSession, setPois, activeSheet, setActiveSheet, newPostAlert, clearNewPostAlert, adminMode } = useGroupStore()
+  const { session, setSession, setPois, activeSheet, setActiveSheet, newPostAlert, clearNewPostAlert, adminMode, selfKicked } = useGroupStore()
 
   const [droppingMode, setDroppingMode] = useState<DroppingMode>(null)
   const pendingSpotRef = useRef<{ type: 'tent' | 'car'; name: string; color: string } | null>(null)
@@ -92,6 +92,22 @@ export function FestivalPage() {
   const handleSpotDropOnMap = (type: 'tent' | 'car', name: string, color: string) => {
     pendingSpotRef.current = { type, name, color }
     setDroppingMode(type)
+  }
+
+  if (selfKicked) {
+    if (code) clearSession(code)
+    return (
+      <div className="flex flex-col items-center justify-center h-dvh bg-zinc-950 px-6 gap-6 text-center">
+        <div className="text-5xl">🚫</div>
+        <div>
+          <h2 className="text-white text-xl font-bold mb-2">Du wurdest entfernt</h2>
+          <p className="text-zinc-400 text-sm">Der Admin hat dich aus der Gruppe entfernt.</p>
+        </div>
+        <button onClick={() => navigate('/')} className="h-12 px-6 rounded-xl bg-rose-600 text-white font-semibold">
+          Zur Startseite
+        </button>
+      </div>
+    )
   }
 
   if (!session) {

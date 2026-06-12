@@ -3,7 +3,7 @@ import { supabase, type Member } from '../lib/supabase'
 import { useGroupStore } from '../store/group'
 
 export function useRealtimeMembers(groupCode: string) {
-  const { setMembers, upsertMember } = useGroupStore()
+  const { setMembers, upsertMember, removeMember, setSelfKicked } = useGroupStore()
 
   useEffect(() => {
     if (!groupCode) return
@@ -22,7 +22,13 @@ export function useRealtimeMembers(groupCode: string) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'members', filter: `group_code=eq.${groupCode}` },
         (payload) => {
-          if (payload.eventType === 'DELETE') return
+          if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as { id: string }).id
+            removeMember(deletedId)
+            const { session } = useGroupStore.getState()
+            if (session?.memberId === deletedId) setSelfKicked(true)
+            return
+          }
           upsertMember(payload.new as Member)
         },
       )
@@ -31,5 +37,5 @@ export function useRealtimeMembers(groupCode: string) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [groupCode, setMembers, upsertMember])
+  }, [groupCode, setMembers, upsertMember, removeMember, setSelfKicked])
 }
