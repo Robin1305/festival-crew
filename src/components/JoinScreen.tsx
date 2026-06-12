@@ -24,10 +24,13 @@ export function JoinScreen({ groupCode, groupName }: Props) {
     setLoading(true)
     setError(null)
 
+    const isCreator = !!localStorage.getItem(`fc-pending-admin-${groupCode}`)
+    localStorage.removeItem(`fc-pending-admin-${groupCode}`)
+
     const color = colorFromName(trimmed)
     const { data, error: err } = await supabase
       .from('members')
-      .insert({ group_code: groupCode, display_name: trimmed, color })
+      .insert({ group_code: groupCode, display_name: trimmed, color, is_admin: isCreator })
       .select()
       .single()
 
@@ -37,7 +40,7 @@ export function JoinScreen({ groupCode, groupName }: Props) {
       return
     }
 
-    const session = { groupCode, memberId: data.id, displayName: trimmed, color }
+    const session = { groupCode, memberId: data.id, displayName: trimmed, color, isAdmin: !!data.is_admin }
     saveSession(session)
     setSession(session)
     navigate(`/${groupCode}`)

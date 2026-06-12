@@ -23,6 +23,7 @@ export function LandingPage() {
       setCreating(false)
       return
     }
+    localStorage.setItem(`fc-pending-admin-${code}`, '1')
     navigate(`/join/${code}`)
   }
 

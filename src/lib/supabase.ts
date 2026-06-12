@@ -21,6 +21,7 @@ export interface Member {
   accuracy_m: number | null
   last_seen: string
   is_sos: boolean
+  is_admin: boolean
 }
 
 export interface Poi {

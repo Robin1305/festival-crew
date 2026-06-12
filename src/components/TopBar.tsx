@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function TopBar({ groupName, accuracy, paused, onTogglePaused }: Props) {
-  const { session, members } = useGroupStore()
+  const { session, members, adminMode, setAdminMode } = useGroupStore()
   const [qrVisible, setQrVisible] = useState(false)
   const [qrUrl, setQrUrl] = useState('')
 
@@ -58,6 +58,16 @@ export function TopBar({ groupName, accuracy, paused, onTogglePaused }: Props) {
         >
           {paused ? '⏸' : '📡'}
         </button>
+
+        {session?.isAdmin && (
+          <button
+            onClick={() => setAdminMode(!adminMode)}
+            title={adminMode ? 'Admin-Modus deaktivieren' : 'Admin-Modus aktivieren'}
+            className={`text-lg w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${adminMode ? 'bg-red-900/70 text-red-300' : 'text-zinc-400'}`}
+          >
+            🛡
+          </button>
+        )}
 
         <button onClick={showQr} className="text-xl w-8 h-8 flex items-center justify-center" title="Share group link">
           🔗

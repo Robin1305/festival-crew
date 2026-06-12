@@ -13,10 +13,19 @@ function lastSeenLabel(dateStr: string): string {
 }
 
 export function FriendsSheet() {
-  const { activeSheet, members, session, setActiveSheet, setSession, flyTo } = useGroupStore()
+  const { activeSheet, members, session, setActiveSheet, setSession, flyTo, adminMode, removeMember } = useGroupStore()
   const [editingName, setEditingName] = useState(false)
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const kickMember = async (memberId: string) => {
+    // Delete in order (no cascade on some tables)
+    await supabase.from('meet_pins').delete().eq('created_by', memberId)
+    await supabase.from('tents').delete().eq('member_id', memberId)
+    await supabase.from('cars').delete().eq('member_id', memberId)
+    await supabase.from('members').delete().eq('id', memberId)
+    removeMember(memberId)
+  }
 
   const visible = activeSheet === 'friends'
 
@@ -93,7 +102,15 @@ export function FriendsSheet() {
                     {online ? 'online' : `offline · ${lastSeenLabel(m.last_seen)}`}
                   </div>
                 </div>
-                {isMe ? (
+                {!isMe && adminMode ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); kickMember(m.id) }}
+                    className="w-8 h-8 rounded-lg bg-red-900/60 text-red-400 flex items-center justify-center text-base active:bg-red-900 shrink-0"
+                    title="Mitglied entfernen"
+                  >
+                    🗑
+                  </button>
+                ) : isMe ? (
                   <span className="text-zinc-500 text-sm pr-1">edit name</span>
                 ) : m.lat ? (
                   <svg viewBox="0 0 24 24" className="w-5 h-5 fill-zinc-500 shrink-0">

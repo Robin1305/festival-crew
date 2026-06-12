@@ -6,6 +6,7 @@ export interface Session {
   memberId: string
   displayName: string
   color: string
+  isAdmin: boolean
 }
 
 interface GroupStore {
@@ -21,6 +22,7 @@ interface GroupStore {
   unreadPosts: number
   newPostAlert: BulletinPost | null
   flyToTarget: [number, number] | null
+  adminMode: boolean
 
   setSession: (s: Session | null) => void
   setMembers: (m: Member[]) => void
@@ -39,6 +41,7 @@ interface GroupStore {
   upsertCar: (c: Car) => void
   removeCar: (id: string) => void
   setActiveSheet: (s: GroupStore['activeSheet'], memberId?: string) => void
+  setAdminMode: (v: boolean) => void
   markPostsRead: () => void
   clearNewPostAlert: () => void
   flyTo: (lat: number, lng: number) => void
@@ -78,6 +81,7 @@ export const useGroupStore = create<GroupStore>((set) => ({
   unreadPosts: 0,
   newPostAlert: null,
   flyToTarget: null,
+  adminMode: false,
 
   setSession: (s) => set({ session: s }),
   setMembers: (members) => set({ members }),
@@ -158,6 +162,7 @@ export const useGroupStore = create<GroupStore>((set) => ({
 
   markPostsRead: () => set({ unreadPosts: 0 }),
   clearNewPostAlert: () => set({ newPostAlert: null }),
+  setAdminMode: (v) => set({ adminMode: v }),
   flyTo: (lat, lng) => set({ flyToTarget: [lat, lng] }),
   clearFlyTo: () => set({ flyToTarget: null }),
 }))

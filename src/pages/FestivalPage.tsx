@@ -19,7 +19,7 @@ import { SpotSheet } from '../components/sheets/SpotSheet'
 export function FestivalPage() {
   const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
-  const { session, setSession, setPois, activeSheet, setActiveSheet, newPostAlert, clearNewPostAlert } = useGroupStore()
+  const { session, setSession, setPois, activeSheet, setActiveSheet, newPostAlert, clearNewPostAlert, adminMode } = useGroupStore()
 
   const [droppingMode, setDroppingMode] = useState<DroppingMode>(null)
   const pendingSpotRef = useRef<{ type: 'tent' | 'car'; name: string; color: string } | null>(null)
@@ -110,6 +110,12 @@ export function FestivalPage() {
         paused={paused}
         onTogglePaused={() => setPaused((p) => !p)}
       />
+
+      {adminMode && (
+        <div className="bg-red-950 border-b border-red-800 text-red-300 text-xs text-center py-1.5 px-4 shrink-0">
+          🛡 Admin-Modus — Mitglieder antippen zum Entfernen
+        </div>
+      )}
 
       <MapView
         droppingMode={droppingMode}

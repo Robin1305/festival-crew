@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import { useGroupStore } from '../store/group'
-import { POI_ICONS, SOUTHSIDE_ZONES } from '../data/southside'
+import { POI_ICONS } from '../data/southside'
 import { haversineDistance, getBearing, getCompassDirection, formatDistance } from '../lib/group-code'
 
 const STALE_MS = 2 * 60 * 1000
@@ -94,32 +94,11 @@ export function MapView({ droppingMode, onDropped }: MapViewProps) {
       maxZoom: 22,
     })
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxNativeZoom: 20,
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxNativeZoom: 19,
       maxZoom: 22,
     }).addTo(map)
-
-    // Festival zone overlays (rough coordinates — calibrate at venue)
-    for (const zone of SOUTHSIDE_ZONES) {
-      const geojson: GeoJSON.Feature = {
-        type: 'Feature',
-        properties: { label: zone.label },
-        geometry: { type: 'Polygon', coordinates: [zone.coords] },
-      }
-      L.geoJSON(geojson, {
-        style: {
-          fillColor: zone.color,
-          fillOpacity: 0.15,
-          color: zone.color,
-          weight: 1.5,
-          opacity: 0.6,
-        },
-      })
-        .bindTooltip(zone.label, { sticky: true, direction: 'center', className: 'zone-tooltip' })
-        .addTo(map)
-    }
 
     map.setView([47.9055, 8.834], 15)
     leafletRef.current = map
