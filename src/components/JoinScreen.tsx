@@ -4,8 +4,6 @@ import { supabase } from '../lib/supabase'
 import { colorFromName } from '../lib/group-code'
 import { useGroupStore } from '../store/group'
 import { saveSession } from '../store/group'
-import { InstallPrompt } from './InstallPrompt'
-
 interface Props {
   groupCode: string
   groupName: string
@@ -48,9 +46,6 @@ export function JoinScreen({ groupCode, groupName }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-6 gap-6 bg-zinc-950">
-      {/* Install prompt appears first — before the name form */}
-      <InstallPrompt />
-
       <div className="text-center">
         <div className="text-5xl mb-4">🎪</div>
         <h1 className="text-2xl font-bold text-white">{groupName}</h1>
