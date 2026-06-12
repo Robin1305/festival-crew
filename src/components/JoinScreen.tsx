@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { colorFromName } from '../lib/group-code'
 import { useGroupStore } from '../store/group'
 import { saveSession } from '../store/group'
+import { InstallPrompt } from './InstallPrompt'
 
 interface Props {
   groupCode: string
@@ -43,7 +44,10 @@ export function JoinScreen({ groupCode, groupName }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-6 gap-8 bg-zinc-950">
+    <div className="flex flex-col items-center justify-center min-h-screen px-6 gap-6 bg-zinc-950">
+      {/* Install prompt appears first — before the name form */}
+      <InstallPrompt />
+
       <div className="text-center">
         <div className="text-5xl mb-4">🎪</div>
         <h1 className="text-2xl font-bold text-white">{groupName}</h1>
@@ -59,7 +63,8 @@ export function JoinScreen({ groupCode, groupName }: Props) {
           onKeyDown={(e) => e.key === 'Enter' && join()}
           autoFocus
           maxLength={20}
-          className="w-full h-14 px-4 rounded-xl bg-zinc-800 text-white text-lg placeholder:text-zinc-500 border border-zinc-700 focus:outline-none focus:border-rose-500"
+          className="w-full h-14 px-4 rounded-xl bg-zinc-800 text-white placeholder:text-zinc-500 border border-zinc-700 focus:outline-none focus:border-rose-500"
+          style={{ fontSize: '16px' }}
         />
 
         {error && <p className="text-red-400 text-sm text-center">{error}</p>}
@@ -75,7 +80,7 @@ export function JoinScreen({ groupCode, groupName }: Props) {
         <ul className="text-zinc-400 text-sm space-y-1 mt-2">
           <li>📍 Share your location with the group</li>
           <li>👥 See where your friends are</li>
-          <li>📋 Leave messages on the bulletin board</li>
+          <li>💬 Leave messages on the bulletin board</li>
         </ul>
       </div>
     </div>

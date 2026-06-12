@@ -14,7 +14,6 @@ import { BulletinSheet } from '../components/sheets/BulletinSheet'
 import { FriendsSheet } from '../components/sheets/FriendsSheet'
 import { PinSheet } from '../components/sheets/PinSheet'
 import { TentSheet } from '../components/sheets/TentSheet'
-import { InstallPrompt } from '../components/InstallPrompt'
 
 export function FestivalPage() {
   const { code } = useParams<{ code: string }>()
@@ -151,8 +150,6 @@ export function FestivalPage() {
       <FriendsSheet />
       <PinSheet onDropOnMap={() => setDropping(true)} />
       <TentSheet onDropOnMap={handleDropTentOnMap} />
-
-      <InstallPrompt />
 
       <BottomNav />
     </div>

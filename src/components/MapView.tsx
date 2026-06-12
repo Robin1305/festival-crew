@@ -89,11 +89,14 @@ export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDrop
       zoomControl: false,
       doubleClickZoom: false,
       attributionControl: true,
+      maxZoom: 22,
     })
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
-      maxZoom: 19,
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxNativeZoom: 20,
+      maxZoom: 22,
     }).addTo(map)
 
     map.setView([47.9055, 8.834], 15)
