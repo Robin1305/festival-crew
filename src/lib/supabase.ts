@@ -53,3 +53,14 @@ export interface MeetPin {
   expires_at: string
   created_at: string
 }
+
+export interface Tent {
+  id: string
+  group_code: string
+  member_id: string
+  name: string
+  color: string
+  lat: number
+  lng: number
+  created_at: string
+}

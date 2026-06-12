@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Member, BulletinPost, MeetPin, Poi } from '../lib/supabase'
+import type { Member, BulletinPost, MeetPin, Poi, Tent } from '../lib/supabase'
 
 export interface Session {
   groupCode: string
@@ -14,9 +14,11 @@ interface GroupStore {
   pois: Poi[]
   posts: BulletinPost[]
   pins: MeetPin[]
-  activeSheet: 'none' | 'bulletin' | 'friends' | 'pin' | 'friend-detail'
+  tents: Tent[]
+  activeSheet: 'none' | 'bulletin' | 'friends' | 'pin' | 'friend-detail' | 'tent'
   selectedMemberId: string | null
   unreadPosts: number
+  newPostAlert: BulletinPost | null
   flyToTarget: [number, number] | null
 
   setSession: (s: Session | null) => void
@@ -29,8 +31,12 @@ interface GroupStore {
   setPins: (p: MeetPin[]) => void
   addPin: (p: MeetPin) => void
   removePin: (id: string) => void
+  setTents: (t: Tent[]) => void
+  upsertTent: (t: Tent) => void
+  removeTent: (id: string) => void
   setActiveSheet: (s: GroupStore['activeSheet'], memberId?: string) => void
   markPostsRead: () => void
+  clearNewPostAlert: () => void
   flyTo: (lat: number, lng: number) => void
   clearFlyTo: () => void
 }
@@ -61,9 +67,11 @@ export const useGroupStore = create<GroupStore>((set) => ({
   pois: [],
   posts: [],
   pins: [],
+  tents: [],
   activeSheet: 'none',
   selectedMemberId: null,
   unreadPosts: 0,
+  newPostAlert: null,
   flyToTarget: null,
 
   setSession: (s) => set({ session: s }),
@@ -92,6 +100,7 @@ export const useGroupStore = create<GroupStore>((set) => ({
     set((state) => ({
       posts: [p, ...state.posts],
       unreadPosts: state.activeSheet === 'bulletin' ? 0 : state.unreadPosts + 1,
+      newPostAlert: state.activeSheet === 'bulletin' ? null : p,
     })),
 
   setPins: (pins) => set({ pins }),
@@ -104,14 +113,33 @@ export const useGroupStore = create<GroupStore>((set) => ({
   removePin: (id) =>
     set((state) => ({ pins: state.pins.filter((p) => p.id !== id) })),
 
-  setActiveSheet: (activeSheet, memberId) =>
-    set({
-      activeSheet,
-      selectedMemberId: memberId ?? null,
-      unreadPosts: activeSheet === 'bulletin' ? 0 : undefined as unknown as number,
+  setTents: (tents) => set({ tents }),
+
+  upsertTent: (t) =>
+    set((state) => {
+      const idx = state.tents.findIndex((x) => x.id === t.id || x.member_id === t.member_id)
+      if (idx >= 0) {
+        const updated = [...state.tents]
+        updated[idx] = t
+        return { tents: updated }
+      }
+      return { tents: [...state.tents, t] }
     }),
 
+  removeTent: (id) =>
+    set((state) => ({ tents: state.tents.filter((t) => t.id !== id) })),
+
+  setActiveSheet: (activeSheet, memberId) =>
+    set((state) => ({
+      activeSheet,
+      selectedMemberId: memberId ?? null,
+      unreadPosts: activeSheet === 'bulletin' ? 0 : state.unreadPosts,
+      newPostAlert: activeSheet === 'bulletin' ? null : state.newPostAlert,
+    })),
+
   markPostsRead: () => set({ unreadPosts: 0 }),
+
+  clearNewPostAlert: () => set({ newPostAlert: null }),
 
   flyTo: (lat, lng) => set({ flyToTarget: [lat, lng] }),
 

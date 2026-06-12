@@ -6,7 +6,7 @@ interface Props {
 }
 
 export function PinSheet({ onDropOnMap }: Props) {
-  const { activeSheet, session, members, pins, setActiveSheet, flyTo } = useGroupStore()
+  const { activeSheet, session, members, pins, setActiveSheet, flyTo, removePin } = useGroupStore()
 
   const visible = activeSheet === 'pin'
   if (!visible) return null
@@ -41,6 +41,8 @@ export function PinSheet({ onDropOnMap }: Props) {
 
   const deletePin = async () => {
     if (!myPin) return
+    removePin(myPin.id) // optimistic — realtime DELETE may be delayed
+    setActiveSheet('none')
     await supabase.from('meet_pins').delete().eq('id', myPin.id)
   }
 

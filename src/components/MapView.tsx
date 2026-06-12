@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import { useGroupStore } from '../store/group'
 import { POI_ICONS } from '../data/southside'
 import { haversineDistance, getBearing, getCompassDirection, formatDistance } from '../lib/group-code'
 
-const STALE_MS = 2 * 60 * 1000 // 2 min = offline
+const STALE_MS = 2 * 60 * 1000
 
 function makeFriendIcon(color: string, initial: string, stale: boolean) {
   return L.divIcon({
@@ -35,22 +35,51 @@ function makeMeetPinIcon(label: string) {
   })
 }
 
+function getTentSize(zoom: number): number {
+  if (zoom <= 13) return 18
+  if (zoom <= 15) return 24
+  if (zoom <= 17) return 30
+  return 36
+}
+
+function makeTentIcon(color: string, size: number) {
+  const half = size / 2
+  return L.divIcon({
+    className: '',
+    iconAnchor: [half, half],
+    iconSize: [size, size],
+    html: `<div style="
+      width:${size}px;height:${size}px;
+      background:${color};
+      border-radius:50%;
+      border:2px solid rgba(255,255,255,0.9);
+      display:flex;align-items:center;justify-content:center;
+      font-size:${Math.round(size * 0.55)}px;
+      box-shadow:0 2px 6px rgba(0,0,0,0.5);
+      line-height:1;
+    ">⛺</div>`,
+  })
+}
+
 interface MapViewProps {
   dropping: boolean
   onDrop: (lat: number, lng: number) => void
   onStopDropping: () => void
+  droppingTent: boolean
+  onDropTent: (lat: number, lng: number) => void
+  onStopDroppingTent: () => void
 }
 
-export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
+export function MapView({ dropping, onDrop, onStopDropping, droppingTent, onDropTent, onStopDroppingTent }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const leafletRef = useRef<L.Map | null>(null)
   const markersRef = useRef<Map<string, L.Marker>>(new Map())
   const accuracyRingsRef = useRef<Map<string, L.Circle>>(new Map())
   const poiMarkersRef = useRef<Map<string, L.Marker>>(new Map())
   const pinMarkersRef = useRef<Map<string, L.Marker>>(new Map())
-  const [tracking, setTracking] = useState(false)
+  const tentMarkersRef = useRef<Map<string, L.Marker>>(new Map())
 
-  const { session, members, pois, pins, flyToTarget, clearFlyTo, setActiveSheet } = useGroupStore()
+  const { session, members, pois, pins, tents, flyToTarget, clearFlyTo, setActiveSheet } = useGroupStore()
 
   // Init map
   useEffect(() => {
@@ -83,19 +112,29 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
     clearFlyTo()
   }, [flyToTarget, clearFlyTo])
 
-  // Drop-pin mode: tap map to place
+  // Drop-pin mode: tap map to place meet-me pin
   useEffect(() => {
     const map = leafletRef.current
     if (!map || !dropping) return
-
     const handler = (e: L.LeafletMouseEvent) => {
       onDrop(e.latlng.lat, e.latlng.lng)
       onStopDropping()
     }
-
     map.once('click', handler)
     return () => { map.off('click', handler) }
   }, [dropping, onDrop, onStopDropping])
+
+  // Drop-tent mode: tap map to place tent
+  useEffect(() => {
+    const map = leafletRef.current
+    if (!map || !droppingTent) return
+    const handler = (e: L.LeafletMouseEvent) => {
+      onDropTent(e.latlng.lat, e.latlng.lng)
+      onStopDroppingTent()
+    }
+    map.once('click', handler)
+    return () => { map.off('click', handler) }
+  }, [droppingTent, onDropTent, onStopDroppingTent])
 
   // Update friend markers
   useEffect(() => {
@@ -132,7 +171,6 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
         markersRef.current.set(m.id, marker)
       }
 
-      // Accuracy ring
       if (m.accuracy_m && m.accuracy_m > 30) {
         if (accuracyRingsRef.current.has(m.id)) {
           accuracyRingsRef.current.get(m.id)!.setLatLng([m.lat, m.lng]).setRadius(m.accuracy_m)
@@ -211,6 +249,56 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
     }
   }, [pins])
 
+  // Tent markers — recreate on tent/member changes
+  useEffect(() => {
+    const map = leafletRef.current
+    if (!map) return
+
+    const zoom = map.getZoom() ?? 15
+    const existingIds = new Set(tentMarkersRef.current.keys())
+
+    for (const tent of tents) {
+      existingIds.delete(tent.id)
+      const size = getTentSize(zoom)
+      const icon = makeTentIcon(tent.color, size)
+
+      if (tentMarkersRef.current.has(tent.id)) {
+        const marker = tentMarkersRef.current.get(tent.id)!
+        marker.setLatLng([tent.lat, tent.lng])
+        marker.setIcon(icon)
+      } else {
+        const owner = members.find((m) => m.id === tent.member_id)
+        const ownerName = owner?.display_name ?? 'Someone'
+        const marker = L.marker([tent.lat, tent.lng], { icon, zIndexOffset: 200 })
+          .addTo(map)
+          .bindPopup(`<div style="font-weight:700;font-size:14px;margin-bottom:2px">${tent.name}</div><div style="color:#555;font-size:12px">${ownerName}'s tent</div>`, { maxWidth: 180 })
+        tentMarkersRef.current.set(tent.id, marker)
+      }
+    }
+
+    for (const id of existingIds) {
+      tentMarkersRef.current.get(id)?.remove()
+      tentMarkersRef.current.delete(id)
+    }
+  }, [tents, members])
+
+  // Scale tent markers on zoom
+  useEffect(() => {
+    const map = leafletRef.current
+    if (!map) return
+
+    const handler = () => {
+      const zoom = map.getZoom()
+      for (const [id, marker] of tentMarkersRef.current) {
+        const tent = tents.find((t) => t.id === id)
+        if (tent) marker.setIcon(makeTentIcon(tent.color, getTentSize(zoom)))
+      }
+    }
+
+    map.on('zoomend', handler)
+    return () => { map.off('zoomend', handler) }
+  }, [tents])
+
   // Auto-fit to members on initial load
   const initialFit = useRef(false)
   useEffect(() => {
@@ -223,21 +311,11 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
     map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 })
   }, [members])
 
-  // Tracking: keep map centered on me
-  useEffect(() => {
-    if (!tracking || !session) return
-    const me = members.find((m) => m.id === session.memberId)
-    if (me?.lat && me?.lng && leafletRef.current) {
-      leafletRef.current.setView([me.lat, me.lng], leafletRef.current.getZoom())
-    }
-  }, [tracking, members, session])
-
   const locateMe = () => {
     const me = session && members.find((m) => m.id === session.memberId)
     if (me?.lat && me?.lng && leafletRef.current) {
       leafletRef.current.setView([me.lat, me.lng], 17, { animate: true })
     }
-    setTracking((t) => !t)
   }
 
   return (
@@ -245,16 +323,21 @@ export function MapView({ dropping, onDrop, onStopDropping }: MapViewProps) {
       <div ref={mapRef} className="absolute inset-0" />
 
       {dropping && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-200 text-sm font-medium px-4 py-2 rounded-full z-10 shadow-lg">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-200 text-sm font-medium px-4 py-2 rounded-full z-10 shadow-lg pointer-events-none">
           Tap the map to place your pin
         </div>
       )}
 
-      {/* Locate-me button — navigation arrow */}
+      {droppingTent && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-200 text-sm font-medium px-4 py-2 rounded-full z-10 shadow-lg pointer-events-none">
+          Tap the map to place your tent ⛺
+        </div>
+      )}
+
+      {/* Locate-me button — navigation arrow, always gray */}
       <button
         onClick={locateMe}
-        className={`absolute bottom-4 right-4 w-14 h-14 rounded-full border flex items-center justify-center shadow-lg active:scale-95 transition-all z-10
-          ${tracking ? 'bg-rose-600 border-rose-500 text-white' : 'bg-zinc-900/90 border-zinc-700 text-zinc-300'}`}
+        className="absolute bottom-4 right-4 w-14 h-14 rounded-full bg-zinc-900/90 border border-zinc-700 text-zinc-300 flex items-center justify-center shadow-lg active:scale-95 transition-all z-10"
         title="Center on my location"
       >
         <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current">
@@ -270,7 +353,6 @@ export function FriendDetailCard() {
   const me = session && members.find((m) => m.id === session.memberId)
   const friend = members.find((m) => m.id === selectedMemberId)
 
-  // Fly to friend when card opens
   useEffect(() => {
     if (friend?.lat && friend?.lng) {
       flyTo(friend.lat, friend.lng)

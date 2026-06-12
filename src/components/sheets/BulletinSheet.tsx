@@ -89,7 +89,8 @@ export function BulletinSheet() {
             }}
             placeholder="Write a message..."
             rows={2}
-            className="flex-1 bg-zinc-800 text-white rounded-xl px-3 py-2 text-sm resize-none placeholder:text-zinc-500 border border-zinc-700 focus:outline-none focus:border-rose-500"
+            className="flex-1 bg-zinc-800 text-white rounded-xl px-3 py-2 resize-none placeholder:text-zinc-500 border border-zinc-700 focus:outline-none focus:border-rose-500"
+            style={{ fontSize: '16px' }}
           />
           <div className="flex flex-col justify-end">
             <button

@@ -5,6 +5,7 @@ import { loadSession, useGroupStore } from '../store/group'
 import { useRealtimeMembers } from '../hooks/useRealtimeMembers'
 import { useRealtimePosts } from '../hooks/useRealtimePosts'
 import { useRealtimePins } from '../hooks/useRealtimePins'
+import { useRealtimeTents } from '../hooks/useRealtimeTents'
 import { useLocationPublisher } from '../hooks/useLocationPublisher'
 import { MapView, FriendDetailCard } from '../components/MapView'
 import { BottomNav } from '../components/BottomNav'
@@ -12,12 +13,17 @@ import { TopBar } from '../components/TopBar'
 import { BulletinSheet } from '../components/sheets/BulletinSheet'
 import { FriendsSheet } from '../components/sheets/FriendsSheet'
 import { PinSheet } from '../components/sheets/PinSheet'
+import { TentSheet } from '../components/sheets/TentSheet'
 
 export function FestivalPage() {
   const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
-  const { session, setSession, setPois, activeSheet } = useGroupStore()
+  const { session, setSession, setPois, activeSheet, setActiveSheet, newPostAlert, clearNewPostAlert } = useGroupStore()
+
   const [dropping, setDropping] = useState(false)
+  const [droppingTent, setDroppingTent] = useState(false)
+  const [pendingTentName, setPendingTentName] = useState('My Tent')
+  const [pendingTentColor, setPendingTentColor] = useState('#f59e0b')
   const [paused, setPaused] = useState(false)
   const [groupName, setGroupName] = useState('Festival Crew')
 
@@ -48,9 +54,17 @@ export function FestivalPage() {
       .then(({ data }) => { if (data) setPois(data) })
   }, [code, session, setPois])
 
+  // Auto-dismiss new message toast after 3s
+  useEffect(() => {
+    if (!newPostAlert) return
+    const t = setTimeout(clearNewPostAlert, 3000)
+    return () => clearTimeout(t)
+  }, [newPostAlert, clearNewPostAlert])
+
   useRealtimeMembers(code ?? '')
   useRealtimePosts(code ?? '')
   useRealtimePins(code ?? '')
+  useRealtimeTents(code ?? '')
 
   const { accuracy } = useLocationPublisher(session?.memberId, paused)
 
@@ -65,6 +79,27 @@ export function FestivalPage() {
       created_by: session.memberId,
       expires_at: expiresAt,
     })
+  }
+
+  const handleDropTent = async (lat: number, lng: number) => {
+    if (!session) return
+    await supabase.from('tents').upsert(
+      {
+        group_code: session.groupCode,
+        member_id: session.memberId,
+        name: pendingTentName,
+        color: pendingTentColor,
+        lat,
+        lng,
+      },
+      { onConflict: 'group_code,member_id' },
+    )
+  }
+
+  const handleDropTentOnMap = (name: string, color: string) => {
+    setPendingTentName(name)
+    setPendingTentColor(color)
+    setDroppingTent(true)
   }
 
   if (!session) {
@@ -88,13 +123,33 @@ export function FestivalPage() {
         dropping={dropping}
         onDrop={handleDrop}
         onStopDropping={() => setDropping(false)}
+        droppingTent={droppingTent}
+        onDropTent={handleDropTent}
+        onStopDroppingTent={() => setDroppingTent(false)}
       />
+
+      {/* New message toast — tap to open messages */}
+      {newPostAlert && (
+        <div
+          className="absolute top-14 left-4 right-4 z-50 bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 shadow-xl active:bg-zinc-700"
+          onClick={() => { clearNewPostAlert(); setActiveSheet('bulletin') }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">💬</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-zinc-400">{newPostAlert.author_name}</div>
+              <div className="text-white text-sm truncate">{newPostAlert.content}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeSheet === 'friend-detail' && <FriendDetailCard />}
 
       <BulletinSheet />
       <FriendsSheet />
       <PinSheet onDropOnMap={() => setDropping(true)} />
+      <TentSheet onDropOnMap={handleDropTentOnMap} />
 
       <BottomNav />
     </div>

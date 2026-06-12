@@ -1,15 +1,17 @@
 import { useGroupStore } from '../store/group'
 
 export function BottomNav() {
-  const { activeSheet, unreadPosts, pins, session, setActiveSheet } = useGroupStore()
+  const { activeSheet, unreadPosts, pins, tents, session, setActiveSheet } = useGroupStore()
 
   const myPin = session ? pins.find((p) => p.created_by === session.memberId) : null
   const pinActive = !!myPin && new Date(myPin.expires_at).getTime() > Date.now()
+  const tentActive = !!session && tents.some((t) => t.member_id === session.memberId)
 
   const tabs = [
     { id: 'friends' as const, icon: '👥', label: 'Friends' },
     { id: 'bulletin' as const, icon: '💬', label: 'Messages', badge: unreadPosts },
     { id: 'pin' as const, icon: '📍', label: 'Pin', active: pinActive },
+    { id: 'tent' as const, icon: '⛺', label: 'Tent', active: tentActive },
   ]
 
   return (
@@ -31,7 +33,7 @@ export function BottomNav() {
                 {tab.badge > 9 ? '9+' : tab.badge}
               </span>
             )}
-            {tab.active && tab.id === 'pin' && (
+            {tab.active && (tab.id === 'pin' || tab.id === 'tent') && (
               <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-zinc-950" />
             )}
           </span>

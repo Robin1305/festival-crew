@@ -116,6 +116,7 @@ export function FriendsSheet() {
                 autoFocus
                 maxLength={20}
                 className="flex-1 h-12 px-3 rounded-xl bg-zinc-800 text-white border border-zinc-700 focus:outline-none focus:border-rose-500"
+                style={{ fontSize: '16px' }}
               />
               <button
                 onClick={saveName}
